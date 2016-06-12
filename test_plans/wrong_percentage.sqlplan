@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.1" Build="10.50.6220.0">
+  <BatchSequence>
+    <Batch>
+      <Statements>
+        <StmtSimple StatementText="SELECT TOP (20) [t0].[SettingTypeID], [t0].[Category], [t0].[Name], [t0].[Description], [t0].[Label], [t0].[Style], [t0].[ModifiedBy], [t0].[ModifiedDate], [t0].[Deleted]&#13;&#10;FROM [reports].[SettingTypes] AS [t0]" StatementId="1" StatementCompId="1" StatementType="SELECT" StatementSubTreeCost="0.00347355" StatementEstRows="20" StatementOptmLevel="TRIVIAL" QueryHash="0x42668CC2DC118522" QueryPlanHash="0x34FAC786214283EF">
+          <StatementSetOptions QUOTED_IDENTIFIER="true" ARITHABORT="false" CONCAT_NULL_YIELDS_NULL="true" ANSI_NULLS="true" ANSI_PADDING="true" ANSI_WARNINGS="true" NUMERIC_ROUNDABORT="false"/>
+          <QueryPlan DegreeOfParallelism="1" CachedPlanSize="16" CompileTime="0" CompileCPU="0" CompileMemory="96">
+            <RelOp NodeId="0" PhysicalOp="Top" LogicalOp="Top" EstimateRows="20" EstimateIO="0" EstimateCPU="2e-006" AvgRowSize="262" EstimatedTotalSubtreeCost="0.00347355" Parallel="0" EstimateRebinds="0" EstimateRewinds="0">
+              <OutputList>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="SettingTypeID"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Category"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Name"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Description"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Label"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Style"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="ModifiedBy"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="ModifiedDate"/>
+                <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Deleted"/>
+              </OutputList>
+              <RunTimeInformation>
+                <RunTimeCountersPerThread Thread="0" ActualRows="20" ActualEndOfScans="1" ActualExecutions="1"/>
+              </RunTimeInformation>
+              <Top RowCount="0" IsPercent="0" WithTies="0">
+                <TopExpression>
+                  <ScalarOperator ScalarString="(20)">
+                    <Const ConstValue="(20)"/>
+                  </ScalarOperator>
+                </TopExpression>
+                <RelOp NodeId="1" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="20" EstimateIO="0.00386574" EstimateCPU="0.0002505" AvgRowSize="262" EstimatedTotalSubtreeCost="0.00347155" TableCardinality="85" Parallel="0" EstimateRebinds="0" EstimateRewinds="0">
+                  <OutputList>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="SettingTypeID"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Category"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Name"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Description"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Label"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Style"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="ModifiedBy"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="ModifiedDate"/>
+                    <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Deleted"/>
+                  </OutputList>
+                  <RunTimeInformation>
+                    <RunTimeCountersPerThread Thread="0" ActualRows="20" ActualEndOfScans="0" ActualExecutions="1"/>
+                  </RunTimeInformation>
+                  <IndexScan Ordered="0" ForcedIndex="0" ForceScan="0" NoExpandHint="0">
+                    <DefinedValues>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="SettingTypeID"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Category"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Name"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Description"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Label"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Style"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="ModifiedBy"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="ModifiedDate"/>
+                      </DefinedValue>
+                      <DefinedValue>
+                        <ColumnReference Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Alias="[t0]" Column="Deleted"/>
+                      </DefinedValue>
+                    </DefinedValues>
+                    <Object Database="[GlobalDB]" Schema="[reports]" Table="[SettingTypes]" Index="[PK_SettingTypes]" Alias="[t0]" IndexKind="Clustered"/>
+                  </IndexScan>
+                </RelOp>
+              </Top>
+            </RelOp>
+          </QueryPlan>
+        </StmtSimple>
+      </Statements>
+    </Batch>
+  </BatchSequence>
+</ShowPlanXML>

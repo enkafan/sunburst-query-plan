@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+path {
+  stroke: #fff;
+}
+
+</style>
+  <body>
+    <div id="main">
+      <div id="chart"></div>
+      <div id="table"></div>
+    </div>
+
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="scopedQuerySelectorShim.min.js"></script>
+<script>
+
+// Mapping of step names to colors.
+var colors = {
+  "operation": "#5687d1",
+  "end": "#7b615c",
+  "join": "#de783b",
+  "language": "#6ab975",
+  "other": "#a173d1"
+};
+
+var width = 960,
+    height = 700,
+    radius = (Math.min(width, height) / 2) - 10;
+
+var x = d3.scale.linear()
+    .range([0, 2 * Math.PI]);
+
+var y = d3.scale.sqrt()
+    .range([0, radius]);
+
+var partition = d3.layout.partition()
+    .value(function(d) { return d.size; });
+
+var arc = d3.svg.arc()
+    .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+    .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+    .innerRadius(function(d) { return Math.max(0, y(d.y)); })
+    .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
+
+var vis = d3.select("#chart").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .append("g")
+    .attr("id", "container")
+    .attr("transform", "translate(" + width / 2 + "," + (height / 2) + ")");
+
+d3.xml("test_plans/Stack Overflow - jon skeet comparison.sqlplan", "application/xml", function(error, data) {
+  if (error) throw error;
+
+  var queries = data.querySelectorAll("StmtSimple");
+  var root = {
+    name: "queries",
+    children: []
+  };
+
+  var i;
+  for (i = 0; i < queries.length; i++){
+    root.children.push(buildQuery(queries[i]));
+  }
+
+  vis.selectAll("path")
+      .data(partition.nodes(root))
+      .enter().append("path")
+      // .attr("display", function(d) { return d.depth ? null : "none"; })
+      .attr("d", arc)
+      .style("fill", function(d) { return colors[d.operationType]; })
+      .on("click", click)
+      .on("mouseover", mouseover);    
+
+  d3.select("#container").on("mouseleave", mouseleave);
+
+});
+
+function buildQuery(q) {
+  var queryPlan = q.querySelector(":scope > QueryPlan");
+  var item = {
+    name: q.attributes["StatementType"].value,
+    size: q.attributes["StatementSubTreeCost"].value,
+    operationType: "language",
+    children: [],
+    details: [
+      { name: "statementText", value:  q.attributes["StatementText"].value },
+      { name: "statementSubTreeCost", value: q.attributes["StatementSubTreeCost"].value },
+      { name: "statementEstRows", value: q.attributes["StatementEstRows"].value },
+      { name: "degreeOfParallelism", value: queryPlan.attributes["DegreeOfParallelism"].value },
+      { name: "cachedPlanSize", value: queryPlan.attributes["CachedPlanSize"].value + " KB" },
+    ]
+  }
+
+  var childOps = q.querySelectorAll(":scope > * > RelOp");
+  addRelOps(item, childOps);
+  return item;
+}
+
+function addRelOps(parent, relOps){
+  var relOpsCounter;
+  var count;
+  for(relOpsCounter = 0, count = relOps.length; relOpsCounter < count; relOpsCounter++){
+    var op = relOps[relOpsCounter];
+    var item = {
+      name: op.attributes["PhysicalOp"].value,
+      operationType: getOperationType(op.attributes["LogicalOp"].value),
+      details: [],
+      children:[
+        { name:"EstimateCPU", size: Number(op.attributes["EstimateCPU"].value), operationType:"end" },
+        { name:"EstimateIO", size: Number(op.attributes["EstimateIO"].value), operationType:"end" },
+      ]
+    };
+
+    var j;
+    for(j = 0; j < op.attributes.length;j++)
+    {
+      item.details.push({ name: op.attributes[j].name, value: op.attributes[j].value });
+    }
+
+    var children = op.querySelectorAll(":scope > * > RelOp");
+    if (children.length > 0) {
+      addRelOps(item, children);
+    }
+
+    parent.children.push(item);
+  }
+}
+
+function getOperationType(logicalOp)
+{
+  switch(logicalOp) {
+    case "Clustered Index Scan":
+    case "Clustered Index Seek":
+    case "Index Seek":
+    case "Index Scan":
+    case "Index Scan":
+    case "Table Scan":
+        return "end"
+        break;
+    default:
+        return "operation";
+  }
+}
+
+
+function click(d) {
+  vis.transition()
+      .duration(750)
+      .tween("scale", function() {
+        var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
+            yd = d3.interpolate(y.domain(), [d.y, 1]),
+            yr = d3.interpolate(y.range(), [d.y ? 60 : 0, radius]);
+        return function(t) { x.domain(xd(t)); y.domain(yd(t)).range(yr(t)); };
+      })
+    .selectAll("path")
+      .attrTween("d", function(d) { return function() { return arc(d); }; });
+  }
+
+function mouseover(d) {
+  var parents = getAncestors(d);
+  var children = getDescendents(d);
+
+    // Fade all the segments.
+  d3.selectAll("path")
+    .style("opacity", 0.3);
+
+  // Then highlight only those that are an ancestor of the current segment.
+  vis.selectAll("path")
+    .filter(function(node) {
+      return (children.indexOf(node) >= 0);
+    })
+    .style("opacity", 1);
+
+    tabulate(d.details, ["name", "value"]);        
+}
+
+// Restore everything to full opacity when moving off the visualization.
+function mouseleave(d) {
+
+  d3.selectAll("path")
+      .style("opacity", 1);
+}
+
+// Given a node in a partition layout, return an array of all of its ancestor
+// nodes, highest first, but excluding the root.
+function getAncestors(node) {
+  var path = [];
+  var current = node;
+  while (current.parent) {
+    path.unshift(current);
+    current = current.parent;
+  }
+  return path;
+}
+
+function getDescendents(node) {
+  var path = [ node ];
+  if (node.children == undefined)
+    return path;
+
+  var i;
+  for(i = 0; i < node.children.length; i++)
+  {
+    path.push.apply(path, getDescendents(node.children[i]));
+  }
+
+  return path;
+}
+
+</script>
+  </body>
+  </html>

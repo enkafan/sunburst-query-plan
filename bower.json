@@ -1,0 +1,21 @@
+{
+  "name": "sunburst-query-plan",
+  "authors": [
+    "Phil Scott <phil.scott@gmail.com>"
+  ],
+  "description": "Sunburst Visualization of SQL Server Query Plans",
+  "main": "sunburst-query-plan.js",
+  "license": "MIT",
+  "homepage": "",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "d3": "^3.5.17"
+  }
+}
