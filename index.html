@@ -2,13 +2,47 @@
 <meta charset="utf-8">
 <style>
 
+body{
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size:12px;
+}
+
 path {
   stroke: #fff;
+}
+
+#table{
+  position:absolute;
+  top:25px;
+  left:525px;
+}
+
+#table table{
+    background: #fff;
+    margin: 1em 0;
+    border: 1px solid rgba(34,36,38,.15);
+    box-shadow: none;
+    border-radius: .28571429rem;
+    text-align: left;
+    color: rgba(0,0,0,.87);
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 350px;
+}
+
+#table table td{
+    padding: .4em .6em;
+    width: 175px;
+}
+
+#table table tr:nth-child(2n) {
+    background-color: rgba(0,0,50,.02);
 }
 
 </style>
   <body>
     <div id="main">
+      <div id="breadcrumbs"></div>
       <div id="chart"></div>
       <div id="table"></div>
     </div>
@@ -26,8 +60,8 @@ var colors = {
   "other": "#a173d1"
 };
 
-var width = 960,
-    height = 700,
+var width = 500,
+    height = 500,
     radius = (Math.min(width, height) / 2) - 10;
 
 var x = d3.scale.linear()
@@ -36,14 +70,18 @@ var x = d3.scale.linear()
 var y = d3.scale.sqrt()
     .range([0, radius]);
 
+// fudge it so at least everything has can make an appearance. this is straight garbage honestly
+// but if we don't do it query plans where a join happens where it is 99.9% vs 1% the .1% just doesn't show
+// looks ok until you zoom in on the tiny items and then they don't "resize" to be relative to one another
+var maxSize = 0;
 var partition = d3.layout.partition()
-    .value(function(d) { return d.size; });
+    .value(function(d) { return Math.max(maxSize/360, d.size); }); 
 
 var arc = d3.svg.arc()
     .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
     .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-    .innerRadius(function(d) { return Math.max(0, y(d.y)); })
-    .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
+    .innerRadius(function(d) { return Math.max(.1, y(d.y)); })
+    .outerRadius(function(d) { return Math.max(y(.1), y(d.y + d.dy)); });
 
 var vis = d3.select("#chart").append("svg")
     .attr("width", width)
@@ -52,13 +90,18 @@ var vis = d3.select("#chart").append("svg")
     .attr("id", "container")
     .attr("transform", "translate(" + width / 2 + "," + (height / 2) + ")");
 
-d3.xml("test_plans/Stack Overflow - jon skeet comparison.sqlplan", "application/xml", function(error, data) {
+var table = d3.select("#table").append("table"),
+  thead = table.append("thead")
+  tbody = table.append("tbody");
+
+d3.xml("test_plans/Stack Overflow - how unsung am i.sqlplan", "application/xml", function(error, data) {
   if (error) throw error;
 
   var queries = data.querySelectorAll("StmtSimple");
   var root = {
     name: "queries",
-    children: []
+    children: [],
+    details: [ {name: "test", value:"value"} ]
   };
 
   var i;
@@ -69,7 +112,7 @@ d3.xml("test_plans/Stack Overflow - jon skeet comparison.sqlplan", "application/
   vis.selectAll("path")
       .data(partition.nodes(root))
       .enter().append("path")
-      // .attr("display", function(d) { return d.depth ? null : "none"; })
+      .attr("display", function(d) { return d.depth ? null : "none"; })
       .attr("d", arc)
       .style("fill", function(d) { return colors[d.operationType]; })
       .on("click", click)
@@ -87,17 +130,25 @@ function buildQuery(q) {
     operationType: "language",
     children: [],
     details: [
-      { name: "statementText", value:  q.attributes["StatementText"].value },
-      { name: "statementSubTreeCost", value: q.attributes["StatementSubTreeCost"].value },
-      { name: "statementEstRows", value: q.attributes["StatementEstRows"].value },
-      { name: "degreeOfParallelism", value: queryPlan.attributes["DegreeOfParallelism"].value },
-      { name: "cachedPlanSize", value: queryPlan.attributes["CachedPlanSize"].value + " KB" },
+      { name: "StatementSubTreeCost", value: q.attributes["StatementSubTreeCost"].value },
+      { name: "StatementEstRows", value: q.attributes["StatementEstRows"].value },
+      { name: "DegreeOfParallelism", value: queryPlan.attributes["DegreeOfParallelism"].value },
+      { name: "CachedPlanSize", value: queryPlan.attributes["CachedPlanSize"].value + " KB" },
     ]
   }
 
+  maxSize = Math.max(maxSize, item.size);
+
   var childOps = q.querySelectorAll(":scope > * > RelOp");
   addRelOps(item, childOps);
+  fudgeSizes(item);
   return item;
+}
+
+function fudgeSizes(i)
+{
+
+
 }
 
 function addRelOps(parent, relOps){
@@ -175,8 +226,21 @@ function mouseover(d) {
     })
     .style("opacity", 1);
 
-    tabulate(d.details, ["name", "value"]);        
-}
+  var details = d.details;
+  if (details == undefined)
+    details = d.parent.details;
+
+
+  row = tbody.selectAll("tr")
+    .remove();
+  row = tbody.selectAll("tr")
+    .data(details)
+    .enter()
+    .append("tr");
+  row.append("td").text(function(d) { return d.name; })
+  row.append("td").text(function(d) { return d.value; })
+
+  }
 
 // Restore everything to full opacity when moving off the visualization.
 function mouseleave(d) {
