@@ -73,9 +73,9 @@ var y = d3.scale.sqrt()
 // fudge it so at least everything has can make an appearance. this is straight garbage honestly
 // but if we don't do it query plans where a join happens where it is 99.9% vs 1% the .1% just doesn't show
 // looks ok until you zoom in on the tiny items and then they don't "resize" to be relative to one another
-var maxSize = 0;
+var totalSize = 0;
 var partition = d3.layout.partition()
-    .value(function(d) { return Math.max(maxSize/360, d.size); }); 
+    .value(function(d) { return Math.max(totalSize/360, d.size); }); 
 
 var arc = d3.svg.arc()
     .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
@@ -109,6 +109,9 @@ d3.xml("test_plans/Stack Overflow - how unsung am i.sqlplan", "application/xml",
     root.children.push(buildQuery(queries[i]));
   }
 
+  totalSize = 0;
+  addSizeToTotal(root);
+  
   vis.selectAll("path")
       .data(partition.nodes(root))
       .enter().append("path")
@@ -137,18 +140,25 @@ function buildQuery(q) {
     ]
   }
 
-  maxSize = Math.max(maxSize, item.size);
-
   var childOps = q.querySelectorAll(":scope > * > RelOp");
   addRelOps(item, childOps);
-  fudgeSizes(item);
+  
   return item;
 }
 
-function fudgeSizes(i)
-{
+function addSizeToTotal(d)
+{    
+    if (d.size != undefined) {
+      console.log(Number(d.size));
+      totalSize += Number(d.size);
+    }
+    if (d.children == undefined)
+      return;
 
-
+    var i;
+    for (i = 0; i < d.children.length; i++){
+      addSizeToTotal(d.children[i]);
+    }
 }
 
 function addRelOps(parent, relOps){
@@ -199,7 +209,8 @@ function getOperationType(logicalOp)
 
 
 function click(d) {
-  vis.transition()
+  vis
+    .transition()
       .duration(750)
       .tween("scale", function() {
         var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
@@ -209,7 +220,7 @@ function click(d) {
       })
     .selectAll("path")
       .attrTween("d", function(d) { return function() { return arc(d); }; });
-  }
+}
 
 function mouseover(d) {
   var parents = getAncestors(d);
