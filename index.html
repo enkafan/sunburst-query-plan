@@ -6,6 +6,7 @@ body{
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size:12px;
 }
+h3,h4 {margin:0;font-weight: normal;}
 
 path {
   stroke: #fff;
@@ -44,7 +45,10 @@ path {
     <div id="main">
       <div id="breadcrumbs"></div>
       <div id="chart"></div>
-      <div id="table"></div>
+      <div id="table">
+        <h3 class="query-plan-details-title"></h3>
+        <h4 class="query-plan-details-description"></h4>
+      </div>
     </div>
 
 <script src="//d3js.org/d3.v3.min.js"></script>
@@ -54,10 +58,11 @@ path {
 // Mapping of step names to colors.
 var colors = {
   "operation": "#5687d1",
-  "end": "#7b615c",
+  "data": "#7b615c",
   "join": "#de783b",
   "language": "#6ab975",
-  "other": "#a173d1"
+  "other": "#a173d1",
+  "end": "#0c0909"
 };
 
 var width = 500,
@@ -75,7 +80,9 @@ var y = d3.scale.sqrt()
 // looks ok until you zoom in on the tiny items and then they don't "resize" to be relative to one another
 var totalSize = 0;
 var partition = d3.layout.partition()
-    .value(function(d) { return Math.max(totalSize/360, d.size); }); 
+    .value(function(d) { 
+      return Math.max(totalSize/360, d.size); 
+    }); 
 
 var arc = d3.svg.arc()
     .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
@@ -94,7 +101,7 @@ var table = d3.select("#table").append("table"),
   thead = table.append("thead")
   tbody = table.append("tbody");
 
-d3.xml("test_plans/Stack Overflow - how unsung am i.sqlplan", "application/xml", function(error, data) {
+d3.xml("test_plans/Stack Overflow - what is my accepted answer percentage rate.sqlplan", "application/xml", function(error, data) {
   if (error) throw error;
 
   var queries = data.querySelectorAll("StmtSimple");
@@ -115,7 +122,15 @@ d3.xml("test_plans/Stack Overflow - how unsung am i.sqlplan", "application/xml",
   vis.selectAll("path")
       .data(partition.nodes(root))
       .enter().append("path")
-      .attr("display", function(d) { return d.depth ? null : "none"; })
+      .attr("display", function(d) { 
+        if (!d.depth)
+          return "none";
+
+        if (d.operationType == "end")
+          return "none";
+
+        return null; 
+      })
       .attr("d", arc)
       .style("fill", function(d) { return colors[d.operationType]; })
       .on("click", click)
@@ -141,9 +156,36 @@ function buildQuery(q) {
   }
 
   var childOps = q.querySelectorAll(":scope > * > RelOp");
+
   addRelOps(item, childOps);
   
   return item;
+}
+
+function setDescription(item, node) {
+  item.title = node.attributes["PhysicalOp"].value + " (" + node.attributes["LogicalOp"].value + ")";
+  var objectNode = node.querySelector(":scope > * > Object");
+  if (objectNode != undefined)
+    item.description = getNameFromAttributeList(objectNode, ["Schema", "Table", "Index", "Column", "Alias"]); 
+}
+
+function getNameFromAttributeList(node, attributeList) {
+  var name = "";
+  var first = true;
+  var i;
+  for (i = 0; i < attributeList.length; i++){
+    var attribute = node.attributes[attributeList[i]];
+    if (attribute != undefined) {
+      if (first === false) 
+        name += ".";     
+      else
+        first = false;
+
+      name += attribute.value;
+    }
+  }
+  
+  return name;
 }
 
 function addSizeToTotal(d)
@@ -182,6 +224,8 @@ function addRelOps(parent, relOps){
       item.details.push({ name: op.attributes[j].name, value: op.attributes[j].value });
     }
 
+    setDescription(item, op);
+
     var children = op.querySelectorAll(":scope > * > RelOp");
     if (children.length > 0) {
       addRelOps(item, children);
@@ -200,8 +244,19 @@ function getOperationType(logicalOp)
     case "Index Scan":
     case "Index Scan":
     case "Table Scan":
-        return "end"
+        return "data";
         break;
+    case "Cross Join":
+    case "Inner Join":
+    case "Left Anti Semi Join":
+    case "Left Outer Join":
+    case "Left Semi Join":
+    case "Right Anti Semi Join":
+    case "Right Outer Join":
+    case "Right Semi Join":
+    case "Merge":
+      return "join";
+      break;
     default:
         return "operation";
   }
@@ -228,7 +283,8 @@ function mouseover(d) {
 
     // Fade all the segments.
   d3.selectAll("path")
-    .style("opacity", 0.3);
+    .style("opacity", 0.6)
+    .style("border-color", "#fff");
 
   // Then highlight only those that are an ancestor of the current segment.
   vis.selectAll("path")
@@ -236,6 +292,15 @@ function mouseover(d) {
       return (children.indexOf(node) >= 0);
     })
     .style("opacity", 1);
+
+    vis.selectAll("path")
+    .filter(function(node) {
+      return (node == d);
+    })
+    .style("border-color", "#ccc");
+
+  d3.selectAll(".query-plan-details-title").html(d.title != undefined ? d.title : "&nbsp;" );
+  d3.selectAll(".query-plan-details-description").html(d.description != undefined ? d.description : "&nbsp;");
 
   var details = d.details;
   if (details == undefined)
