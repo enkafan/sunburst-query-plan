@@ -1,356 +1,71 @@
-<!DOCTYPE html>
-<meta charset="utf-8">
-<style>
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Demo chart</title>
 
-body{
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size:12px;
-}
-h3,h4 {margin:0;font-weight: normal;}
+    <meta charset="utf-8">
 
-path {
-  stroke: #fff;
-}
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 12px;
+        }
 
-#table{
-  position:absolute;
-  top:25px;
-  left:525px;
-}
+        h3, h4 {
+            margin: 0;
+            font-weight: normal;
+        }
 
-#table table{
-    background: #fff;
-    margin: 1em 0;
-    border: 1px solid rgba(34,36,38,.15);
-    box-shadow: none;
-    border-radius: .28571429rem;
-    text-align: left;
-    color: rgba(0,0,0,.87);
-    border-collapse: separate;
-    border-spacing: 0;
-    width: 350px;
-}
+        path { stroke: #fff; }
 
-#table table td{
-    padding: .4em .6em;
-    width: 175px;
-}
+        #table {
+            position: absolute;
+            top: 25px;
+            left: 525px;
+        }
 
-#table table tr:nth-child(2n) {
-    background-color: rgba(0,0,50,.02);
-}
+        #table table {
+            background: #fff;
+            margin: 1em 0;
+            border: 1px solid rgba(34, 36, 38, .15);
+            box-shadow: none;
+            border-radius: .28571429rem;
+            text-align: left;
+            color: rgba(0, 0, 0, .87);
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 350px;
+        }
 
-</style>
-  <body>
-    <div id="main">
-      <div id="breadcrumbs"></div>
-      <div id="chart"></div>
-      <div id="table">
+        #table table td {
+            padding: .4em .6em;
+            width: 175px;
+        }
+
+        #table table tr:nth-child(2n) { background-color: rgba(0, 0, 50, .02); }
+    </style>
+</head>
+<body>
+<div id="main">
+    <div id="breadcrumbs"></div>
+    <div id="chart"></div>
+    <div id="table">
         <h3 class="query-plan-details-title"></h3>
         <h4 class="query-plan-details-description"></h4>
-      </div>
     </div>
+</div>
 
 <script src="//d3js.org/d3.v3.min.js"></script>
 <script src="scopedQuerySelectorShim.min.js"></script>
+    <script src="query-plan-viz.js"></script>
 <script>
-
-// Mapping of step names to colors.
-var colors = {
-  "operation": "#5687d1",
-  "data": "#7b615c",
-  "join": "#de783b",
-  "language": "#6ab975",
-  "other": "#a173d1",
-  "end": "#0c0909"
-};
-
-var width = 500,
-    height = 500,
-    radius = (Math.min(width, height) / 2) - 10;
-
-var x = d3.scale.linear()
-    .range([0, 2 * Math.PI]);
-
-var y = d3.scale.sqrt()
-    .range([0, radius]);
-
-// fudge it so at least everything has can make an appearance. this is straight garbage honestly
-// but if we don't do it query plans where a join happens where it is 99.9% vs 1% the .1% just doesn't show
-// looks ok until you zoom in on the tiny items and then they don't "resize" to be relative to one another
-var totalSize = 0;
-var partition = d3.layout.partition()
-    .value(function(d) { 
-      return Math.max(totalSize/360, d.size); 
-    }); 
-
-var arc = d3.svg.arc()
-    .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
-    .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-    .innerRadius(function(d) { return Math.max(.1, y(d.y)); })
-    .outerRadius(function(d) { return Math.max(y(.1), y(d.y + d.dy)); });
-
-var vis = d3.select("#chart").append("svg")
-    .attr("width", width)
-    .attr("height", height)
-    .append("g")
-    .attr("id", "container")
-    .attr("transform", "translate(" + width / 2 + "," + (height / 2) + ")");
-
-var table = d3.select("#table").append("table"),
-  thead = table.append("thead")
-  tbody = table.append("tbody");
-
-d3.xml("test_plans/Stack Overflow - what is my accepted answer percentage rate.sqlplan", "application/xml", function(error, data) {
-  if (error) throw error;
-
-  var queries = data.querySelectorAll("StmtSimple");
-  var root = {
-    name: "queries",
-    children: [],
-    details: [ {name: "test", value:"value"} ]
-  };
-
-  var i;
-  for (i = 0; i < queries.length; i++){
-    root.children.push(buildQuery(queries[i]));
-  }
-
-  totalSize = 0;
-  addSizeToTotal(root);
-  
-  vis.selectAll("path")
-      .data(partition.nodes(root))
-      .enter().append("path")
-      .attr("display", function(d) { 
-        if (!d.depth)
-          return "none";
-
-        if (d.operationType == "end")
-          return "none";
-
-        return null; 
-      })
-      .attr("d", arc)
-      .style("fill", function(d) { return colors[d.operationType]; })
-      .on("click", click)
-      .on("mouseover", mouseover);    
-
-  d3.select("#container").on("mouseleave", mouseleave);
-
-});
-
-function buildQuery(q) {
-  var queryPlan = q.querySelector(":scope > QueryPlan");
-  var item = {
-    name: q.attributes["StatementType"].value,
-    size: q.attributes["StatementSubTreeCost"].value,
-    operationType: "language",
-    children: [],
-    details: [
-      { name: "StatementSubTreeCost", value: q.attributes["StatementSubTreeCost"].value },
-      { name: "StatementEstRows", value: q.attributes["StatementEstRows"].value },
-      { name: "DegreeOfParallelism", value: queryPlan.attributes["DegreeOfParallelism"].value },
-      { name: "CachedPlanSize", value: queryPlan.attributes["CachedPlanSize"].value + " KB" },
-    ]
-  }
-
-  var childOps = q.querySelectorAll(":scope > * > RelOp");
-
-  addRelOps(item, childOps);
-  
-  return item;
-}
-
-function setDescription(item, node) {
-  item.title = node.attributes["PhysicalOp"].value + " (" + node.attributes["LogicalOp"].value + ")";
-  var objectNode = node.querySelector(":scope > * > Object");
-  if (objectNode != undefined)
-    item.description = getNameFromAttributeList(objectNode, ["Schema", "Table", "Index", "Column", "Alias"]); 
-}
-
-function getNameFromAttributeList(node, attributeList) {
-  var name = "";
-  var first = true;
-  var i;
-  for (i = 0; i < attributeList.length; i++){
-    var attribute = node.attributes[attributeList[i]];
-    if (attribute != undefined) {
-      if (first === false) 
-        name += ".";     
-      else
-        first = false;
-
-      name += attribute.value;
-    }
-  }
-  
-  return name;
-}
-
-function addSizeToTotal(d)
-{    
-    if (d.size != undefined) {
-      console.log(Number(d.size));
-      totalSize += Number(d.size);
-    }
-    if (d.children == undefined)
-      return;
-
-    var i;
-    for (i = 0; i < d.children.length; i++){
-      addSizeToTotal(d.children[i]);
-    }
-}
-
-function addRelOps(parent, relOps){
-  var relOpsCounter;
-  var count;
-  for(relOpsCounter = 0, count = relOps.length; relOpsCounter < count; relOpsCounter++){
-    var op = relOps[relOpsCounter];
-    var item = {
-      name: op.attributes["PhysicalOp"].value,
-      operationType: getOperationType(op.attributes["LogicalOp"].value),
-      details: [],
-      children:[
-        { name:"EstimateCPU", size: Number(op.attributes["EstimateCPU"].value), operationType:"end" },
-        { name:"EstimateIO", size: Number(op.attributes["EstimateIO"].value), operationType:"end" },
-      ]
+    var options = {
+        chartSelector: "#chart",
+        tableSelector: "#table"
     };
-
-    var j;
-    for(j = 0; j < op.attributes.length;j++)
-    {
-      item.details.push({ name: op.attributes[j].name, value: op.attributes[j].value });
-    }
-
-    setDescription(item, op);
-
-    var children = op.querySelectorAll(":scope > * > RelOp");
-    if (children.length > 0) {
-      addRelOps(item, children);
-    }
-
-    parent.children.push(item);
-  }
-}
-
-function getOperationType(logicalOp)
-{
-  switch(logicalOp) {
-    case "Clustered Index Scan":
-    case "Clustered Index Seek":
-    case "Index Seek":
-    case "Index Scan":
-    case "Index Scan":
-    case "Table Scan":
-        return "data";
-        break;
-    case "Cross Join":
-    case "Inner Join":
-    case "Left Anti Semi Join":
-    case "Left Outer Join":
-    case "Left Semi Join":
-    case "Right Anti Semi Join":
-    case "Right Outer Join":
-    case "Right Semi Join":
-    case "Merge":
-      return "join";
-      break;
-    default:
-        return "operation";
-  }
-}
-
-
-function click(d) {
-  vis
-    .transition()
-      .duration(750)
-      .tween("scale", function() {
-        var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
-            yd = d3.interpolate(y.domain(), [d.y, 1]),
-            yr = d3.interpolate(y.range(), [d.y ? 60 : 0, radius]);
-        return function(t) { x.domain(xd(t)); y.domain(yd(t)).range(yr(t)); };
-      })
-    .selectAll("path")
-      .attrTween("d", function(d) { return function() { return arc(d); }; });
-}
-
-function mouseover(d) {
-  var parents = getAncestors(d);
-  var children = getDescendents(d);
-
-    // Fade all the segments.
-  d3.selectAll("path")
-    .style("opacity", 0.6)
-    .style("border-color", "#fff");
-
-  // Then highlight only those that are an ancestor of the current segment.
-  vis.selectAll("path")
-    .filter(function(node) {
-      return (children.indexOf(node) >= 0);
-    })
-    .style("opacity", 1);
-
-    vis.selectAll("path")
-    .filter(function(node) {
-      return (node == d);
-    })
-    .style("border-color", "#ccc");
-
-  d3.selectAll(".query-plan-details-title").html(d.title != undefined ? d.title : "&nbsp;" );
-  d3.selectAll(".query-plan-details-description").html(d.description != undefined ? d.description : "&nbsp;");
-
-  var details = d.details;
-  if (details == undefined)
-    details = d.parent.details;
-
-
-  row = tbody.selectAll("tr")
-    .remove();
-  row = tbody.selectAll("tr")
-    .data(details)
-    .enter()
-    .append("tr");
-  row.append("td").text(function(d) { return d.name; })
-  row.append("td").text(function(d) { return d.value; })
-
-  }
-
-// Restore everything to full opacity when moving off the visualization.
-function mouseleave(d) {
-
-  d3.selectAll("path")
-      .style("opacity", 1);
-}
-
-// Given a node in a partition layout, return an array of all of its ancestor
-// nodes, highest first, but excluding the root.
-function getAncestors(node) {
-  var path = [];
-  var current = node;
-  while (current.parent) {
-    path.unshift(current);
-    current = current.parent;
-  }
-  return path;
-}
-
-function getDescendents(node) {
-  var path = [ node ];
-  if (node.children == undefined)
-    return path;
-
-  var i;
-  for(i = 0; i < node.children.length; i++)
-  {
-    path.push.apply(path, getDescendents(node.children[i]));
-  }
-
-  return path;
-}
-
+    
+    var viz = new QueryPlanViz.Visualizer(options);
+    viz.renderXml("test_plans/nested loops.xml");
 </script>
-  </body>
-  </html>
+</body>
+</html>
