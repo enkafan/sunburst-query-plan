@@ -1,4 +1,8 @@
-/// </// <reference path="query-plan-viz-nodes.ts" />
+var __extends = (this && this.__extends) || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+};
 var QueryPlanViz;
 (function (QueryPlanViz) {
     var Options = (function () {
@@ -32,6 +36,7 @@ var QueryPlanViz;
                 .outerRadius(function (d) { return Math.max(0, _this.y(d.y + d.dy)); });
             this.partition = d3.layout.partition()
                 .value(function (d) { return Math.max(_this.totalSize / 360, d.size); });
+            this.nodeFactory = new QueryNodeFactory();
             this.width = options.width != undefined ? options.width : 500;
             this.height = options.height != undefined ? options.height : 500;
             this.radius = (Math.min(this.width, this.height) / 2) - 10;
@@ -68,8 +73,7 @@ var QueryPlanViz;
         Visualizer.prototype.renderData = function (data) {
             var _this = this;
             var queries = data.querySelectorAll("StmtSimple");
-            var root = new QueryPlanViz.QueryNode("Queries", "query");
-            ;
+            var root = new RootNode();
             for (var _i = 0, queries_1 = queries; _i < queries_1.length; _i++) {
                 var query = queries_1[_i];
                 root.children.push(this.buildQuery(query));
@@ -92,7 +96,7 @@ var QueryPlanViz;
         };
         Visualizer.prototype.buildQuery = function (q) {
             var queryPlan = q.querySelector(":scope > QueryPlan");
-            var item = new QueryPlanViz.QueryNode(q.attributes["StatementType"].value, "language");
+            var item = new QueryOperationNode(q);
             item.size = q.attributes["StatementSubTreeCost"].value;
             item.details.concat([
                 { name: "StatementSubTreeCost", value: q.attributes["StatementSubTreeCost"].value },
@@ -129,7 +133,6 @@ var QueryPlanViz;
         };
         Visualizer.prototype.addSizeToTotal = function (d) {
             if (d.size != undefined) {
-                console.log(Number(d.size));
                 this.totalSize += Number(d.size);
             }
             if (d.children == undefined)
@@ -142,44 +145,12 @@ var QueryPlanViz;
         Visualizer.prototype.addRelOps = function (parent, relOps) {
             for (var _i = 0, relOps_1 = relOps; _i < relOps_1.length; _i++) {
                 var op = relOps_1[_i];
-                var item = new QueryPlanViz.QueryNode(op.attributes["PhysicalOp"].value, this.getOperationType(op.attributes["LogicalOp"].value));
-                ;
-                item.children = [
-                    new QueryPlanViz.QueryNode("EstimateCPU", "end", Number(op.attributes["EstimateCPU"].value)),
-                    new QueryPlanViz.QueryNode("EstimatedIO", "end", Number(op.attributes["EstimateIO"].value))
-                ];
-                var j = void 0;
-                for (j = 0; j < op.attributes.length; j++) {
-                    item.details.push({ name: op.attributes[j].name, value: op.attributes[j].value });
-                }
-                this.setDescription(item, op);
+                var item = this.nodeFactory.getQueryNode(op);
                 var children = op.querySelectorAll(":scope > * > RelOp");
                 if (children.length > 0) {
                     this.addRelOps(item, children);
                 }
                 parent.children.push(item);
-            }
-        };
-        Visualizer.prototype.getOperationType = function (logicalOp) {
-            switch (logicalOp) {
-                case "Clustered Index Scan":
-                case "Clustered Index Seek":
-                case "Index Seek":
-                case "Index Scan":
-                case "Table Scan":
-                    return "data";
-                case "Cross Join":
-                case "Inner Join":
-                case "Left Anti Semi Join":
-                case "Left Outer Join":
-                case "Left Semi Join":
-                case "Right Anti Semi Join":
-                case "Right Outer Join":
-                case "Right Semi Join":
-                case "Merge":
-                    return "join";
-                default:
-                    return "operation";
             }
         };
         Visualizer.prototype.click = function (node) {
@@ -254,5 +225,88 @@ var QueryPlanViz;
         return Visualizer;
     }());
     QueryPlanViz.Visualizer = Visualizer;
+    var Details = (function () {
+        function Details() {
+        }
+        return Details;
+    }());
+    var QueryNode = (function () {
+        function QueryNode() {
+            this.children = new Array();
+            this.details = new Array();
+        }
+        return QueryNode;
+    }());
+    var OperationNode = (function (_super) {
+        __extends(OperationNode, _super);
+        function OperationNode(node) {
+            _super.call(this);
+            this.name = name;
+            this.logicalOperation = node.attributes["LogicalOp"].value;
+            this.physicalOperation = node.attributes["PhysicalOp"].value;
+            this.operationType = this.getOperationType(this.logicalOperation);
+            this.details = new Array();
+            this.children.push(new CostQueryNode("EstimateCPU", Number(node.attributes["EstimateCPU"].value)));
+            this.children.push(new CostQueryNode("EstimatedIO", Number(node.attributes["EstimateIO"].value)));
+        }
+        OperationNode.prototype.getOperationType = function (logicalOp) {
+            switch (logicalOp) {
+                case "Clustered Index Scan":
+                case "Clustered Index Seek":
+                case "Index Seek":
+                case "Index Scan":
+                case "Table Scan":
+                    return "data";
+                case "Cross Join":
+                case "Inner Join":
+                case "Left Anti Semi Join":
+                case "Left Outer Join":
+                case "Left Semi Join":
+                case "Right Anti Semi Join":
+                case "Right Outer Join":
+                case "Right Semi Join":
+                case "Merge":
+                    return "join";
+                default:
+                    return "operation";
+            }
+        };
+        return OperationNode;
+    }(QueryNode));
+    var RootNode = (function (_super) {
+        __extends(RootNode, _super);
+        function RootNode() {
+            _super.call(this);
+            this.name = "Queries";
+            this.size = 0;
+        }
+        return RootNode;
+    }(QueryNode));
+    var QueryOperationNode = (function (_super) {
+        __extends(QueryOperationNode, _super);
+        function QueryOperationNode(node) {
+            _super.call(this);
+            this.statementType = node.attributes["StatementType"].value;
+            this.operationType = "language";
+        }
+        return QueryOperationNode;
+    }(QueryNode));
+    var CostQueryNode = (function (_super) {
+        __extends(CostQueryNode, _super);
+        function CostQueryNode(name, size) {
+            _super.call(this);
+            this.name = name;
+            this.size = size;
+        }
+        return CostQueryNode;
+    }(QueryNode));
+    var QueryNodeFactory = (function () {
+        function QueryNodeFactory() {
+        }
+        QueryNodeFactory.prototype.getQueryNode = function (node) {
+            return new OperationNode(node);
+        };
+        return QueryNodeFactory;
+    }());
 })(QueryPlanViz || (QueryPlanViz = {}));
 //# sourceMappingURL=query-plan-viz.js.map

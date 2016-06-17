@@ -1,7 +1,14 @@
 {
     "compilerOptions": {
         "target": "es5",
-        "module": "commonjs",
-        "sourceMap": true
-    }
+        "module": "system",
+        "sourceMap": true,        
+        "noImplicitAny": true,        
+        "outFile": "build/query-plan-viz.js"
+    },
+    "files":[
+        "query-plan-viz.ts",
+        "typings/index.d.ts"
+    ]
+
 }

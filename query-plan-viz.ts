@@ -1,26 +1,5 @@
 module QueryPlanViz {
 
-    class Details {
-        name: string;
-        value: string;
-    }
-
-    class QueryNode implements d3.layout.tree.Node {
-        size: number;
-        name: string;
-        depth: number;
-        x: number;
-        y: number;
-        dx: number;
-        dy: number;
-        operationType: string;
-        title: string;
-        description: string;
-        parent: QueryNode;
-        details: Details[];
-        children;
-    }
-
     class Options {
         height: number;
         width: number;
@@ -30,7 +9,7 @@ module QueryPlanViz {
 
     export class Visualizer {
         // Mapping of step names to colors. 
-        private colors = {
+        private colors: { [id: string]: string; } = {
             "operation": "#5687d1",
             "data": "#7b615c",
             "join": "#de783b",
@@ -64,6 +43,8 @@ module QueryPlanViz {
 
         private partition = d3.layout.partition<QueryNode>()
             .value(d => Math.max(this.totalSize / 360, d.size));
+
+        private nodeFactory =  new QueryNodeFactory();
 
         /**
          * @param options Options for the chart
@@ -106,13 +87,10 @@ module QueryPlanViz {
             });
         }
 
-        private renderData(data) {
+        private renderData(data: any) {
             const queries = data.querySelectorAll("StmtSimple");
-            const root = new QueryNode();
-            root.name = "queries";
-            root.children = new Array<QueryNode>();
-            root.details = [{ name: "test", value: "value" }];
-
+            const root = new RootNode();
+            
             for (let query of queries) {
                 root.children.push(this.buildQuery(query));
             }
@@ -137,17 +115,14 @@ module QueryPlanViz {
 
         private buildQuery(q: any) {
             const queryPlan = q.querySelector(":scope > QueryPlan");
-            const item = new QueryNode();
-            item.name = q.attributes["StatementType"].value;
+            const item = new QueryOperationNode(q);
             item.size = q.attributes["StatementSubTreeCost"].value;
-            item.operationType = "language";
-            item.children = [];
-            item.details = [
+            item.details.concat([
                 { name: "StatementSubTreeCost", value: q.attributes["StatementSubTreeCost"].value },
                 { name: "StatementEstRows", value: q.attributes["StatementEstRows"].value },
                 { name: "DegreeOfParallelism", value: queryPlan.attributes["DegreeOfParallelism"].value },
                 { name: "CachedPlanSize", value: queryPlan.attributes["CachedPlanSize"].value + " KB" }
-            ];
+            ]);
 
             const childOps = q.querySelectorAll(":scope > * > RelOp");
 
@@ -156,7 +131,7 @@ module QueryPlanViz {
             return item;
         }
 
-        private setDescription(item: QueryNode, node) {
+        private setDescription(item: QueryNode, node: any) {
             item.title = node.attributes["PhysicalOp"].value + " (" + node.attributes["LogicalOp"].value + ")";
             const objectNode = node.querySelector(":scope > * > Object");
             if (objectNode != undefined)
@@ -164,7 +139,7 @@ module QueryPlanViz {
                     .getNameFromAttributeList(objectNode, ["Schema", "Table", "Index", "Column", "Alias"]);
         }
 
-        private getNameFromAttributeList(node, attributeList) {
+        private getNameFromAttributeList(node: any, attributeList: string[]) {
             let name = "";
             let first = true;
 
@@ -185,7 +160,6 @@ module QueryPlanViz {
 
         private addSizeToTotal(d: QueryNode) {
             if (d.size != undefined) {
-                console.log(Number(d.size));
                 this.totalSize += Number(d.size);
             }
             if (d.children == undefined)
@@ -197,24 +171,12 @@ module QueryPlanViz {
             }
         }
 
-        private addRelOps(parent: QueryNode, relOps) {
+        private addRelOps(parent: QueryNode, relOps:any) {
+            
             for (let op of relOps) {
-                const item = new QueryNode();
-                item.name = op.attributes["PhysicalOp"].value;
-                item.operationType = this.getOperationType(op.attributes["LogicalOp"].value);
-                item.details = [];
-                item.children = [
-                    { name: "EstimateCPU", size: Number(op.attributes["EstimateCPU"].value), operationType: "end" },
-                    { name: "EstimateIO", size: Number(op.attributes["EstimateIO"].value), operationType: "end" }
-                ];
 
-                let j: number;
-                for (j = 0; j < op.attributes.length; j++) {
-                    item.details.push({ name: op.attributes[j].name, value: op.attributes[j].value });
-                }
-
-                this.setDescription(item, op);
-
+                const item = this.nodeFactory.getQueryNode(op);
+                                
                 const children = op.querySelectorAll(":scope > * > RelOp");
                 if (children.length > 0) {
                     this.addRelOps(item, children);
@@ -224,28 +186,6 @@ module QueryPlanViz {
             }
         }
 
-        getOperationType(logicalOp: string) {
-            switch (logicalOp) {
-            case "Clustered Index Scan":
-            case "Clustered Index Seek":
-            case "Index Seek":
-            case "Index Scan":
-            case "Table Scan":
-                return "data";
-            case "Cross Join":
-            case "Inner Join":
-            case "Left Anti Semi Join":
-            case "Left Outer Join":
-            case "Left Semi Join":
-            case "Right Anti Semi Join":
-            case "Right Outer Join":
-            case "Right Semi Join":
-            case "Merge":
-                return "join";
-            default:
-                return "operation";
-            }
-        }
 
         click(node: QueryNode) {
             console.log("click");
@@ -310,7 +250,7 @@ module QueryPlanViz {
         // Given a node in a partition layout, return an array of all of its ancestor
         // nodes, highest first, but excluding the root.
         getAncestors(node: QueryNode): QueryNode[] {
-            const path = [];
+            const path = new Array<QueryNode>();
             let current = node;
             while (current.parent) {
                 path.unshift(current);
@@ -331,4 +271,103 @@ module QueryPlanViz {
             return path;
         }
     }
+
+    class Details {
+        name: string;
+        value: string;
+    }
+
+    class QueryNode implements d3.layout.partition.Node {       
+        size: number;
+        name: string;
+        depth: number;
+        x: number;
+        y: number;
+        dx: number;
+        dy: number;
+        operationType: string;
+        title: string;
+        description: string;
+        details: Details[];
+        parent: QueryNode;
+        children: QueryNode[];
+
+        constructor(){
+            this.children = new Array<QueryNode>();
+            this.details = new Array<Details>();
+        }
+    }
+
+    class OperationNode extends QueryNode{
+        logicalOperation: string;
+        physicalOperation: string;
+
+        constructor(node: any){
+            super();
+            this.name = name;
+            this.logicalOperation = node.attributes["LogicalOp"].value;
+            this.physicalOperation = node.attributes["PhysicalOp"].value;
+            this.operationType = this.getOperationType(this.logicalOperation);
+            this.details = new Array<Details>();
+
+            this.children.push(new CostQueryNode("EstimateCPU", Number(node.attributes["EstimateCPU"].value)));
+            this.children.push(new CostQueryNode("EstimatedIO", Number(node.attributes["EstimateIO"].value)));
+        }
+
+        getOperationType(logicalOp: string) {
+            switch (logicalOp) {
+                case "Clustered Index Scan":
+                case "Clustered Index Seek":
+                case "Index Seek":
+                case "Index Scan":
+                case "Table Scan":
+                    return "data";
+                case "Cross Join":
+                case "Inner Join":
+                case "Left Anti Semi Join":
+                case "Left Outer Join":
+                case "Left Semi Join":
+                case "Right Anti Semi Join":
+                case "Right Outer Join":
+                case "Right Semi Join":
+                case "Merge":
+                    return "join";
+                default:
+                    return "operation";
+            }
+        }
+    }
+
+    class RootNode extends QueryNode{
+        constructor(){
+            super();
+            this.name = "Queries";
+            this.size = 0;
+        }
+    }
+
+    class QueryOperationNode extends QueryNode{
+        statementType:string;
+        
+        constructor(node: any){
+            super();
+            this.statementType = node.attributes["StatementType"].value;
+            this.operationType = "language";
+        }
+    }
+
+    class CostQueryNode extends QueryNode{
+        constructor(name:string, size:number) {
+            super();
+            this.name = name;
+            this.size = size;            
+        }
+    }
+
+    class QueryNodeFactory{
+        getQueryNode(node: any){
+            return new OperationNode(node);
+        }
+    }
+    
 }

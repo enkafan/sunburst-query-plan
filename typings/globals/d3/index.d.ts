@@ -3049,7 +3049,7 @@ declare namespace d3 {
 
             interface Node {
                 parent?: Node;
-                children?: number;
+                children?: Node[];
                 value?: number;
                 depth?: number;
                 x?: number;
